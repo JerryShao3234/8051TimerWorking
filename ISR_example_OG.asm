@@ -18,6 +18,8 @@ SOUND_OUT     equ P2.1
 UPDOWN        equ P0.0
 BUT0          equ P3.3
 BUT1          equ P3.1
+BUT3		  equ P2.6
+BUT4		  equ P2.2
 
 
 ; Reset vector
@@ -172,6 +174,8 @@ Inc_Done:
 	jnb UPDOWN, Timer2_ISR_decrement
 	jnb BUT0, Min_increment
 	jnb BUT1, Hour_increment
+	jnb BUT3, Amincrement
+	jnb BUT4, Ahourement
 	add a, #0x01
 	sjmp Timer2_ISR_da
 Timer2_ISR_decrement:
@@ -193,6 +197,8 @@ Hour_increment:
 	mov hour_counter, a
 	mov a, temp4
 	sjmp Timer2_ISR_da
+Amincrement:
+Ahourement:
 Timer2_ISR_da:
 	da a ; Decimal adjust instruction.  Check datasheet for more details!
 	cjne a, #0b01100000, labelad1 ;check if a=60
@@ -292,6 +298,8 @@ main:
 	mov BCD_counter, #0x00
 	mov min_counter, #0x00
 	mov BCD_counter2, #0x00
+	mov A_Hour, #0x00
+	mov A_Min, #0x00
 	mov mid_day, #0x00
 	mov hour_counter, #0x00 ;Jerry edits
 	
@@ -321,7 +329,13 @@ Set_Cursor(1, 12)     ; the place in the LCD where we want the BCD counter value
 	Display_BCD(min_counter)
 	Set_Cursor(1, 6)
 	Display_BCD(hour_counter);Jerry edits
+	Set_Cursor(2, 7)
+	Display_BCD(A_Hour)
+	Set_Cursor(2,10)
+	Display_BCD(A_Min)
 	Set_Cursor(1, 15)
+	
+
 	
 	mov temp2, a
 	mov a, mid_day
