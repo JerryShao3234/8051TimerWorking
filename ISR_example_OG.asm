@@ -6,42 +6,35 @@
 $NOLIST
 $MODEFM8LB1
 $LIST
-
 CLK           EQU 24000000 ; Microcontroller system crystal frequency in Hz
 TIMER0_RATE   EQU 2000*2    ; The tone we want out is A mayor.  Interrupt rate must be twice as fast.
 TIMER0_RELOAD EQU ((65536-(CLK/(TIMER0_RATE))))
 TIMER2_RATE   EQU 1000     ; 1000Hz, for a timer tick of 1ms
 TIMER2_RELOAD EQU ((65536-(CLK/(TIMER2_RATE))))
-
 BOOT_BUTTON   equ P3.7
 SOUND_OUT     equ P2.1
 UPDOWN        equ P0.0
 BUT0          equ P3.3
 BUT1          equ P3.1
-BUT3		  equ P2.6
-BUT4		  equ P2.2
+BUT3		  equ P2.3
+BUT4		  equ P2.6
 
 
 ; Reset vector
 org 0x0000
     ljmp main
-
 ; External interrupt 0 vector (not used in this code)
 org 0x0003
 	reti
-
 ; Timer/Counter 0 overflow interrupt vector
 org 0x000B
 	ljmp Timer0_ISR
-
 ; External interrupt 1 vector (not used in this code)
 org 0x0013
 	reti
-
 ; Timer/Counter 1 overflow interrupt vector (not used in this code)
 org 0x001B
 	reti
-
 ; Serial port receive/transmit interrupt vector (not used in this code)
 org 0x0023 
 	reti
@@ -49,7 +42,6 @@ org 0x0023
 ; Timer/Counter 2 overflow interrupt vector
 org 0x002B
 	ljmp Timer2_ISR
-
 ; In the 8051 we can define direct access variables starting at location 0x30 up to location 0x7F
 dseg at 0x30
 Count1ms:     ds 2 ; Used to determine when half second has passed
@@ -63,13 +55,11 @@ temp2:        ds 1
 temp3:        ds 1
 temp4:        ds 1
 mid_day:      ds 1 ;AM=0 or PM=1 indicator
-
 ; In the 8051 we have variables that are 1-bit in size.  We can use the setb, clr, jb, and jnb
 ; instructions with these variables.  This is how you define a 1-bit variable:
 bseg
 half_seconds_flag: dbit 1 ; Set to one in the ISR every time 500 ms had passed
 minute_flag: dbit 1
-
 cseg
 ; These 'equ' must match the wiring between the microcontroller and the LCD!
 LCD_RS equ P2.0
@@ -82,13 +72,11 @@ LCD_D7 equ P0.6
 $NOLIST
 $include(LCD_4bit.inc) ; A library of LCD related functions and utility macros
 $LIST
-
 ;                     1234567890123456    <- This helps determine the location of the counter
 Initial_Message:  db 'TIME xx:xx:xx ', 0
 Alarm_Message:    db 'ALARM xx:xx AM', 0
 bef_mid:  db 'AM', 0
 aft_mid:  db 'PM', 0
-
 ;-----------------------------------;
 ; Routine to initialize the timer 0 ;
 ;-----------------------------------;
@@ -104,7 +92,6 @@ Timer0_Init:
     setb ET0  ; Enable timer 0 interrupt
     setb TR0  ; Start timer 0
 	ret
-
 ;---------------------------------;
 ; ISR for timer 0.                ;
 ;---------------------------------;
@@ -117,7 +104,6 @@ Timer0_ISR:
 	setb TR0
 	cpl SOUND_OUT ; Toggle the pin connected to the speaker
 	reti
-
 ;---------------------------------;
 ; Routine to initialize timer 2   ;
 ;---------------------------------;
@@ -137,7 +123,6 @@ Timer2_Init:
     setb ET2  ; Enable timer 2 interrupt
     setb TR2  ; Enable timer 2
 	ret
-
 ;---------------------------------;
 ; ISR for timer 2                 ;
 ;---------------------------------;
@@ -153,7 +138,6 @@ Timer2_ISR:
 	mov a, Count1ms+0 ; If the low 8-bits overflow, then increment high 8-bits
 	jnz Inc_Done
 	inc Count1ms+1
-
 Inc_Done:
 	; Check if half second has passed
 	mov a, Count1ms+0
@@ -198,7 +182,11 @@ Hour_increment:
 	mov a, temp4
 	sjmp Timer2_ISR_da
 Amincrement:
+	inc A_min
+	sjmp Timer2_ISR_da
 Ahourement:
+inc A_hour
+	sjmp Timer2_ISR_da
 Timer2_ISR_da:
 	da a ; Decimal adjust instruction.  Check datasheet for more details!
 	cjne a, #0b01100000, labelad1 ;check if a=60
@@ -210,16 +198,13 @@ Timer2_ISR_da:
 	da a
 	mov min_counter, a ;min_counter is properly displayed
 	mov a, BCD_counter2 ;restore tampered a
-
 	labelad1:  nop
 	
 	mov BCD_counter, a
-
 	mov a, min_counter ;check if minutes = 60
 	cjne a, #0b01100000, labelad2 ;
 	mov a, #0x00 ;reset a
 	mov min_counter, a	;reset min_counter
-
 	
 	mov a, hour_counter ;increment hour_counter
 	add a, #0x01
@@ -234,7 +219,6 @@ Timer2_ISR_da:
 	mov a, #0x00 ;if so, reset it
 	mov hour_counter, a
 	
-
 	labelad2: nop
 	
 	labelad3: nop
@@ -243,7 +227,6 @@ Timer2_ISR_done:
 	pop psw
 	pop acc
 	reti
-
 ;---------------------------------;
 ; Hardware initialization         ;
 ;---------------------------------;
@@ -251,12 +234,10 @@ Initialize_All:
     ; DISABLE WDT: provide Watchdog disable keys
 	mov	WDTCN,#0xDE ; First key
 	mov	WDTCN,#0xAD ; Second key
-
     ; Enable crossbar and weak pull-ups
 	mov	XBR0,#0x00
 	mov	XBR1,#0x00
 	mov	XBR2,#0x40
-
 	mov	P2MDOUT,#0x02 ; make sound output pin (P2.1) push-pull
 	
 	; Switch clock to 24 MHz
@@ -267,17 +248,13 @@ Initialize_All:
 waitclockstable:
 	mov a, CLKSEL
 	jnb acc.7, waitclockstable 
-
 	; Initialize the two timers used in this program
     lcall Timer0_Init
     lcall Timer2_Init
-
     lcall LCD_4BIT ; Initialize LCD
     
     setb EA   ; Enable Global interrupts
-
 	ret
-
 ;---------------------------------;
 ; Main program.                   ;
 ;---------------------------------;
@@ -292,7 +269,6 @@ main:
     Send_Constant_String(#Initial_Message)
     Set_Cursor(2,1)
     Send_Constant_String(#Alarm_Message)
-
     
     setb half_seconds_flag
 	mov BCD_counter, #0x00
@@ -342,7 +318,6 @@ Set_Cursor(1, 12)     ; the place in the LCD where we want the BCD counter value
 	cjne a, #0x00, loop_m
 	Send_Constant_String(#bef_mid)
 	mov a, temp2
-
     ljmp loop
 loop_m:
 	Send_Constant_String(#aft_mid)
